@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useNhostClient, useAuthenticationStatus } from "@nhost/nextjs";
+// Importa la funzione helper per la gestione degli errori
+import { getErrorMessage } from "@/lib/errorUtils"; 
 
+// Assumi che StatCard sia definito in un altro file o qui sopra
 const StatCard = ({ value, label }: { value: string | number, label: string }) => (
   <div className="glass-card p-6 text-center rounded-xl">
     <p className="font-heading text-6xl text-electric-blue tracking-wider">{value}</p>
@@ -14,41 +17,51 @@ const StatCard = ({ value, label }: { value: string | number, label: string }) =
 export default function DashboardPage() {
   const nhost = useNhostClient();
   const { isAuthenticated, isLoading: authLoading } = useAuthenticationStatus();
+  
+  // Stato per i dati del profilo/bilancio
   const [profileData, setProfileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!isAuthenticated) return;
+      // Non eseguire se lo stato di autenticazione non è definito o non siamo loggati
+      if (!isAuthenticated) return; 
+
       setIsLoading(true);
       setError(null);
+      
       try {
-        // Chiama la Serverless Function 'get-profile'
-        const { res, error: funcError } = await nhost.functions.call('get-profile');
+        // --- CHIAMATA ALLA FUNZIONE BILANCIO (get-user-balance) ---
+        const { res, error: funcError } = await nhost.functions.call('get-user-balance'); 
+        // ---------------------------------------------------------
 
         if (funcError) throw funcError;
+        
         if (res.status === 200) {
           setProfileData(await res.json());
         } else {
            const errorData = await res.json();
-           throw new Error(errorData.error || `Errore ${res.status}`);
+           throw errorData; // Lancia l'oggetto errore per il blocco catch
         }
       } catch (err: any) {
-        console.error("Errore chiamata funzione get-profile:", err);
-        setError("Errore nel recupero dati profilo.");
+        // Usa la funzione helper per convertire l'oggetto errore in una stringa
+        setError(getErrorMessage(err)); 
       } finally {
         setIsLoading(false);
       }
     };
 
+    // Esegui il fetch solo quando lo stato di autenticazione è stabile e loggato
     if (!authLoading && isAuthenticated) {
         fetchProfile();
     }
 
-  }, [isAuthenticated, authLoading, nhost.functions]);
+  }, [isAuthenticated, authLoading, nhost.functions]); // Dipendenze corrette
 
+  // Valori per il rendering delle StatCard
   const credsBalance = isLoading ? "..." : (error ? "ERR" : (profileData?.creds_balance || 0));
+  const inviteCount = isLoading ? "..." : (error ? "ERR" : (profileData?.invite_count || 0));
 
   return (
     <div>
@@ -56,14 +69,17 @@ export default function DashboardPage() {
         La Tua <span className="text-electric-blue">Dashboard</span>
       </h1>
       
-      {/* Sezione Stats - Ora il saldo è dinamico */}
+      {/* Sezione Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <StatCard value={credsBalance} label="Creds Guadagnati" />
-        <StatCard value={profileData?.invite_count || 0} label="Amici Invitati" />
-        <StatCard value="0" label="Missioni Completate" /> {/* Questo campo richiede logica separata */}
+        <StatCard value={inviteCount} label="Amici Invitati" />
+        <StatCard value="0" label="Missioni Completate" /> 
       </div>
 
-      {/* Sezione Azioni Rapide (invariata) */}
+      {/* Messaggio di errore in cima alla sezione azioni */}
+      {error && <p className="text-red-500 mt-4 text-center glass-card p-3 mb-6">Errore recupero dati: {error}</p>}
+
+      {/* Sezione Azioni Rapide */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Link href="/dashboard/offers" className="glass-card p-8 text-center transform hover:-translate-y-2 transition-transform duration-300 hover:border-electric-blue border-2 border-transparent">
           <p className="text-5xl mb-4">🚀</p>
@@ -76,7 +92,6 @@ export default function DashboardPage() {
           <p className="text-gray-400">Guadagnate entrambi un bonus speciale.</p>
         </Link>
       </div>
-      {error && <p className="text-red-500 mt-4">Errore: {error}</p>}
     </div>
   );
 }
