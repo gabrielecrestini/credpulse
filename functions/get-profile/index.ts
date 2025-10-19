@@ -1,8 +1,8 @@
 // functions/get-profile/index.ts
-import { Request, Response } from '@nhost/functions';
-import { gql, GraphQLClient } from 'graphql-request';
+import { Request, Response } from '@nhost/functions'
+import { gql, GraphQLClient } from 'graphql-request'
 
-// Query GraphQL per ottenere i dati del profilo
+// ✅ Query GraphQL per ottenere i dati del profilo
 const GET_PROFILE_QUERY = gql`
   query GetUserProfile($userId: uuid!) {
     profiles_by_pk(id: $userId) {
@@ -14,63 +14,72 @@ const GET_PROFILE_QUERY = gql`
       created_at
     }
   }
-`;
+`
 
 export default async (req: Request, res: Response) => {
-  // --- GESTORE CORS: FONDAMENTALE PER LO SVILUPPO LOCALE ---
-  // Ritorna gli header necessari per sbloccare la chiamata dal frontend
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Permetti l'accesso da qualsiasi origine (solo per test, in produzione si usa il tuo dominio)
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE, PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-nhost-webhook-secret');
-  
-  // Se il browser invia una richiesta OPTIONS (il preflight check), rispondiamo OK e usciamo
+  // 🌐 --- GESTIONE CORS ---
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, x-nhost-webhook-secret')
+
+  // Risposta immediata al preflight OPTIONS
   if (req.method === 'OPTIONS') {
-    return res.status(200).send('OK');
+    return res.status(204).end()
   }
-  // -------------------------------------------------------------
 
-  // --- 1. Autenticazione e Recupero ID Utente ---
-  const userId = req.nhost?.userId;
-  
+  // 🧑 --- AUTENTICAZIONE ---
+  const userId = req.nhost?.userId
+
   if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized', message: 'User ID not found in request context.' });
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Token non valido o utente non autenticato.',
+    })
   }
 
-  // --- 2. Inizializza il client GraphQL Admin ---
-  const adminSecret = process.env.NHOST_ADMIN_SECRET;
-  const graphqlEndpoint = process.env.NHOST_GRAPHQL_URL;
+  // 🔐 --- CONFIGURAZIONE NHOST ---
+  const graphqlEndpoint = process.env.NHOST_GRAPHQL_URL
+  const adminSecret = process.env.NHOST_ADMIN_SECRET
 
   if (!graphqlEndpoint || !adminSecret) {
-      console.error('Configurazione Nhost mancante: GraphQL URL o Admin Secret.');
-      return res.status(500).json({ error: 'Internal Server Error', message: 'Nhost configuration missing.' });
+    console.error('❌ Configurazione Nhost mancante.')
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Nhost GraphQL URL o Admin Secret mancanti.',
+    })
   }
-  
-  const client = new GraphQLClient(graphqlEndpoint, {
-    headers: { 'x-hasura-admin-secret': adminSecret },
-  });
 
-  // --- 3. Esecuzione della Query GraphQL ---
+  const client = new GraphQLClient(graphqlEndpoint, {
+    headers: {
+      'x-hasura-admin-secret': adminSecret,
+    },
+  })
+
+  // 🧾 --- ESECUZIONE QUERY ---
   try {
-    const variables = { userId: userId };
-    const data = await client.request(GET_PROFILE_QUERY, variables);
+    const variables = { userId }
+    const data = await client.request(GET_PROFILE_QUERY, variables)
 
     if (!data.profiles_by_pk) {
-      // Restituisce un profilo vuoto ma con 0 crediti e codice nullo in caso di 404
-      return res.status(404).json({ 
-        error: 'Profile not found', 
+      // ✅ Risposta pulita per utenti nuovi senza profilo
+      return res.status(200).json({
         id: userId,
         referral_code: null,
         creds_balance: 0,
-        invite_count: 0
-      });
+        invite_count: 0,
+        username: null,
+        created_at: null,
+        isNewProfile: true,
+      })
     }
 
-    // 4. Restituisce i dati del profilo al frontend
-    return res.status(200).json(data.profiles_by_pk);
-
+    // ✅ Restituisci il profilo esistente
+    return res.status(200).json(data.profiles_by_pk)
   } catch (error: any) {
-    console.error('Errore durante il recupero del profilo (GraphQL):', JSON.stringify(error, null, 2));
-    const errorMessage = error.message || 'Errore sconosciuto durante il fetch del profilo.';
-    return res.status(500).json({ error: 'GraphQL Query Failed', details: errorMessage });
+    console.error('❌ Errore GraphQL get-profile:', JSON.stringify(error, null, 2))
+    return res.status(500).json({
+      error: 'GraphQL Query Failed',
+      message: error.message || 'Errore sconosciuto durante il fetch del profilo.',
+    })
   }
-};
+}
