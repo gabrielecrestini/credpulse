@@ -1,0 +1,15 @@
+{
+  "name": "create-profile",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@nhost/functions": "^1.0.0", // Assicurati di usare la versione corretta
+    "graphql-request": "^6.1.0"   // O l'ultima versione
+  },
+  "devDependencies": {
+     "@types/node": "^18" // O la versione che usi
+  }
+}
