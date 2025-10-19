@@ -3,28 +3,29 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect } from 'react'; // Aggiunto useEffect
+import { useState, useEffect } from 'react';
 import AuthModal from '../auth/AuthModal';
 import { useAuthenticationStatus, useUserData, useNhostClient } from '@nhost/nextjs';
+import { useRouter } from 'next/navigation'; // Importa per il reindirizzamento
 
 export default function Header() {
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
   const { isAuthenticated, isLoading } = useAuthenticationStatus();
   const userData = useUserData();
   const nhost = useNhostClient();
+  const router = useRouter(); // Inizializza il Router
 
-  // --- NUOVO: Stato per gestire il rendering client-side ---
+  // Stato per gestire il rendering client-side (fix idratazione)
   const [isClient, setIsClient] = useState(false);
-
   useEffect(() => {
-    // Questo useEffect viene eseguito SOLO nel browser dopo il montaggio
     setIsClient(true);
   }, []);
-  // --- FINE NUOVO ---
-
 
   const handleSignOut = async () => {
     await nhost.auth.signOut();
+    // Forza il reindirizzamento immediato per risolvere il bug del logout
+    router.push('/');
+    router.refresh();
   };
 
   return (
@@ -36,13 +37,11 @@ export default function Header() {
           </h1>
         </Link>
         <nav className="hidden md:flex items-center gap-4">
-          {/* --- MODIFICA LOGICA RENDERING --- */}
-          {/* Mostra uno placeholder finché non siamo sicuri di essere nel browser E il caricamento è finito */}
+          {/* Mostra un placeholder finché lo stato non è stabile */}
           {!isClient || isLoading ? (
-             <span className="text-gray-400 text-sm h-10"> </span> // Placeholder vuoto o spinner semplice
-             // <div className="animate-pulse h-10 w-48 bg-gray-700 rounded"></div> // Alternativa: skeleton loader
+             <span className="text-gray-400 text-sm h-10"> </span>
           ) : isAuthenticated ? (
-            // --- UTENTE LOGGATO (Renderizzato solo sul client dopo caricamento) ---
+            // --- UTENTE LOGGATO ---
             <>
               <span className="text-gray-300 text-sm">
                 Ciao, {userData?.displayName || userData?.email}
@@ -53,7 +52,7 @@ export default function Header() {
               <Button onClick={handleSignOut} variant="destructive">Logout</Button>
             </>
           ) : (
-            // --- UTENTE NON LOGGATO (Renderizzato solo sul client dopo caricamento) ---
+            // --- UTENTE NON LOGGATO ---
             <>
               <button onClick={() => setAuthModalOpen(true)} className="font-bold text-gray-300 hover:text-white transition-colors">
                 Login
@@ -63,7 +62,6 @@ export default function Header() {
               </Button>
             </>
           )}
-           {/* --- FINE MODIFICA --- */}
         </nav>
       </header>
       {/* Mostra il modal solo se siamo sul client, non stiamo caricando e l'utente non è autenticato */}

@@ -2,7 +2,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useNhostClient } from "@nhost/nextjs";
-import { Button } from "@/components/ui/button"; // Assumiamo che Button sia definito
+import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errorUtils"; // Importa la funzione helper
 
 interface Offer {
     id: string;
@@ -15,6 +16,7 @@ interface Offer {
 }
 
 const OfferCard = ({ offer }: { offer: Offer }) => (
+    // ... (JSX dell'OfferCard invariato) ...
     <div className="glass-card p-6 flex flex-col justify-between h-full hover:shadow-neon-glow transition-shadow duration-300">
         <div>
             <h2 className="font-heading text-3xl text-electric-blue mb-2">{offer.title}</h2>
@@ -42,20 +44,17 @@ export default function OffersPage() {
       setIsLoading(true);
       setError(null);
       try {
-        // Chiama la Serverless Function 'get-offers'
         const { res, error: funcError } = await nhost.functions.call('get-offers');
 
         if (funcError) throw funcError;
         if (res.status === 200) {
-          // L'API restituisce un array di oggetti offerta
           setOffers(await res.json()); 
         } else {
            const errorData = await res.json();
-           throw new Error(errorData.error || `Errore ${res.status}`);
+           throw errorData; // Lancia l'oggetto errore
         }
       } catch (err: any) {
-        console.error("Errore chiamata funzione get-offers:", err);
-        setError("Impossibile caricare le offerte in questo momento.");
+        setError(getErrorMessage(err)); // Correzione: Converte l'oggetto in stringa
       } finally {
         setIsLoading(false);
       }
