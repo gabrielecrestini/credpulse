@@ -6,10 +6,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@nhost/functions": "^1.0.0", // Assicurati di usare la versione corretta
-    "graphql-request": "^6.1.0"   // O l'ultima versione
+    "@nhost/functions": "^1.0.0", 
+    "graphql-request": "^6.1.0"   
   },
   "devDependencies": {
-     "@types/node": "^18" // O la versione che usi
+     "@types/node": "^18.0.0" 
   }
 }
