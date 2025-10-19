@@ -2,14 +2,15 @@
   "name": "create-profile",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@nhost/functions": "^1.0.0", 
-    "graphql-request": "^6.1.0"   
+    "@nhost/functions": "^2.0.0",
+    "graphql-request": "^6.1.0"
   },
   "devDependencies": {
-     "@types/node": "^18.0.0" 
+    "@types/node": "^18.0.0"
   }
 }

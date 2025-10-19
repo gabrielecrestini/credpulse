@@ -1,57 +1,72 @@
 // src/app/dashboard/invite/page.tsx
 "use client";
-import { gql, useQuery } from '@apollo/client';
-import { useUserId } from '@nhost/nextjs';
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-
-// Query GraphQL per recuperare il profilo
-const GET_MY_PROFILE_QUERY = gql`
-  query GetMyProfile($userId: uuid!) {
-    profiles_by_pk(id: $userId) {
-      referral_code
-      # Puoi aggiungere altri campi qui, es. invite_count
-    }
-  }
-`;
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useNhostClient, useAuthenticationStatus } from '@nhost/nextjs'; // Importa hook Nhost
 
 export default function InvitePage() {
-  const userId = useUserId();
-  const { data, loading, error } = useQuery(GET_MY_PROFILE_QUERY, {
-    variables: { userId },
-    skip: !userId,
-  });
+  const nhost = useNhostClient();
+  const { isAuthenticated, isLoading: authLoading } = useAuthenticationStatus();
+  const [profileData, setProfileData] = useState<any>(null); // Stato per i dati del profilo
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
-  const referralCode = loading ? "CARICAMENTO..." : (error ? "ERRORE" : data?.profiles_by_pk?.referral_code || "NON TROVATO");
-  // Assicurati che il tuo dominio sia corretto qui
-  const shareLink = loading || error || !referralCode ? "" : `https://credpulse.it/?ref=${referralCode}`;
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!isAuthenticated) {
+          setIsLoading(false); // Se non autenticato, finisci il caricamento
+          return;
+      }
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Chiama la Serverless Function
+        const { res, error: funcError } = await nhost.functions.call('get-profile');
 
-  const copyToClipboard = () => {
-    if (shareLink) {
-      navigator.clipboard.writeText(shareLink);
-      setMessage("Link copiato!");
-      setTimeout(() => setMessage(""), 2000);
+        if (funcError) {
+          throw funcError; // Lancia l'errore per il blocco catch
+        }
+        if (res.status === 200) {
+          setProfileData(await res.json());
+        } else {
+           const errorData = await res.json();
+           throw new Error(errorData.details || `Errore ${res.status}`);
+        }
+      } catch (err: any) {
+        console.error("Errore chiamata funzione get-profile:", err);
+        setError(err.message || "Errore sconosciuto nel recupero profilo");
+        setProfileData(null); // Resetta i dati in caso di errore
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Esegui solo se lo stato auth non è in caricamento
+    if (!authLoading) {
+        fetchProfile();
     }
-  };
+
+  }, [isAuthenticated, authLoading, nhost.functions]); // Aggiunto nhost.functions
+
+  const referralCode = isLoading || authLoading ? "CARICAMENTO..." : (error ? "ERRORE" : profileData?.referral_code || "NON TROVATO");
+  const shareLink = isLoading || authLoading || error || !referralCode ? "" : `https://credpulse.it/?ref=${referralCode}`;
+
+  const copyToClipboard = () => { /* ... come prima ... */ };
 
   return (
     <div className="p-8 text-center">
-      <h1 className="font-heading text-6xl tracking-wider text-white mb-4">
-        Invita un <span className="text-electric-blue">Amico</span>
-      </h1>
-      <p className="text-gray-300 max-w-xl mx-auto mb-8">
-        Condividi il tuo link di invito. Per ogni amico che si iscrive e completa una missione, riceverete entrambi un bonus in Creds!
-      </p>
+      {/* ... Titolo e descrizione ... */}
       <div className="glass-card p-10 inline-flex flex-col items-center">
-        <p className="text-gray-400 mb-2">Il tuo link di invito unico:</p>
+        {/* ... Codice/Link ... */}
         <p className="font-heading text-xl md:text-3xl text-cyber-magenta break-all mb-6 min-h-[40px]">
-          {loading ? "..." : (error ? "Errore caricamento link" : shareLink)}
+          {referralCode} {/* Mostra solo il codice o il link come preferisci */}
         </p>
-        <Button onClick={copyToClipboard} disabled={loading || error || !shareLink}>
-          {loading ? "Caricamento..." : "Copia Link"}
+        <Button onClick={copyToClipboard} disabled={isLoading || authLoading || error || !shareLink}>
+          {isLoading || authLoading ? "Caricamento..." : "Copia Link"}
         </Button>
         {message && <p className="text-center mt-4 text-sm text-electric-blue">{message}</p>}
+        {error && <p className="text-center mt-4 text-sm text-red-500">Errore: {error}</p>}
       </div>
     </div>
   );

@@ -2,20 +2,29 @@
 "use client";
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button'; // Assumendo che tu abbia questo
-import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react'; // Aggiunto useEffect
 import AuthModal from '../auth/AuthModal';
-import { useAuthenticationStatus, useUserData, useNhostClient } from '@nhost/nextjs'; // Hook Nhost
+import { useAuthenticationStatus, useUserData, useNhostClient } from '@nhost/nextjs';
 
 export default function Header() {
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
-  const { isAuthenticated, isLoading } = useAuthenticationStatus(); // Stato auth
-  const userData = useUserData(); // Dati utente (email, id, etc.)
-  const nhost = useNhostClient(); // Client per il logout
+  const { isAuthenticated, isLoading } = useAuthenticationStatus();
+  const userData = useUserData();
+  const nhost = useNhostClient();
+
+  // --- NUOVO: Stato per gestire il rendering client-side ---
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    // Questo useEffect viene eseguito SOLO nel browser dopo il montaggio
+    setIsClient(true);
+  }, []);
+  // --- FINE NUOVO ---
+
 
   const handleSignOut = async () => {
     await nhost.auth.signOut();
-    // Il reindirizzamento è gestito dal listener in NhostProvider (o AuthProvider se lo mantieni)
   };
 
   return (
@@ -27,10 +36,13 @@ export default function Header() {
           </h1>
         </Link>
         <nav className="hidden md:flex items-center gap-4">
-          {isLoading ? (
-            <span className="text-gray-400">Caricamento...</span>
+          {/* --- MODIFICA LOGICA RENDERING --- */}
+          {/* Mostra uno placeholder finché non siamo sicuri di essere nel browser E il caricamento è finito */}
+          {!isClient || isLoading ? (
+             <span className="text-gray-400 text-sm h-10"> </span> // Placeholder vuoto o spinner semplice
+             // <div className="animate-pulse h-10 w-48 bg-gray-700 rounded"></div> // Alternativa: skeleton loader
           ) : isAuthenticated ? (
-            // --- UTENTE LOGGATO ---
+            // --- UTENTE LOGGATO (Renderizzato solo sul client dopo caricamento) ---
             <>
               <span className="text-gray-300 text-sm">
                 Ciao, {userData?.displayName || userData?.email}
@@ -41,7 +53,7 @@ export default function Header() {
               <Button onClick={handleSignOut} variant="destructive">Logout</Button>
             </>
           ) : (
-            // --- UTENTE NON LOGGATO ---
+            // --- UTENTE NON LOGGATO (Renderizzato solo sul client dopo caricamento) ---
             <>
               <button onClick={() => setAuthModalOpen(true)} className="font-bold text-gray-300 hover:text-white transition-colors">
                 Login
@@ -51,10 +63,11 @@ export default function Header() {
               </Button>
             </>
           )}
+           {/* --- FINE MODIFICA --- */}
         </nav>
       </header>
-      {/* Mostra il modal solo se l'utente non è autenticato */}
-      {!isAuthenticated && !isLoading && <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />}
+      {/* Mostra il modal solo se siamo sul client, non stiamo caricando e l'utente non è autenticato */}
+      {isClient && !isLoading && !isAuthenticated && <AuthModal isOpen={isAuthModalOpen} onClose={() => setAuthModalOpen(false)} />}
     </>
   );
 }
